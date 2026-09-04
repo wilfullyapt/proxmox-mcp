@@ -68,3 +68,14 @@ Observed via direct HTTP probes against running LXC (192.168.0.233:8000) against
 - Consider making branch default or merging priv-aware work here.
 
 Next: Apply ACL on PVE, test fixes, push branch.
+
+## Branch Status — feature/mcp-robustness-fixes (2026-09-04)
+- [x] Fixed `ActionResponse.data` typing (Any instead of strict dict) — eliminates Pydantic validation errors on list responses from `/nodes` and `/resources`.
+- [x] Cleaned duplicate `setup_self_logging()` / logger lines in `main.py`.
+- [ ] Ceph OSDs path / error handling (501 on current PVE).
+- [ ] `/tasks/recent` param defaults.
+- [ ] Verify `/capabilities` works end-to-end once LXC updated.
+- [ ] Add smoke test for core endpoints.
+- [ ] Prepare LXC update instructions.
+
+Pushed to GitHub after these core robustness fixes.

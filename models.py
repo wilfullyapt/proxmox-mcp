@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, validator
 
 class ActionResponse(BaseModel):
     success: bool
-    data: dict[str, Any] | None = None
+    data: Any | None = None
     error: str | None = None
 
 
