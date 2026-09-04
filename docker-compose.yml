@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  proxmox-mcp:
+    build: .
+    container_name: stronghold-proxmox-mcp
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    networks:
+      - stronghold-internal
+    # For production: run as non-root, add healthcheck, resource limits
+networks:
+  stronghold-internal:
+    driver: bridge
+
+# Deployment note: Run this on a Proxmox node (or dedicated CT) with LAN access to the cluster.
+# Create token on Proxmox: Datacenter > Permissions > API Tokens > create for user with appropriate role (e.g. PVEAuditor + VM.PowerMgmt etc.)
