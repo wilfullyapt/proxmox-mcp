@@ -1,0 +1,1 @@
+"""Router package for Proxmox MCP (modular, priv-aware)."""

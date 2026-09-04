@@ -113,3 +113,19 @@ MIT — see LICENSE. This component is the Stronghold dogfood for the public Ope
 - `references/systemd-unit.md`
 - `scripts/create-lxc.sh`
 - `scripts/update.sh` (one-line helper)
+
+## Usage Examples & Answers
+
+### LXC + Docker Registry + Gitea
+Yes, the MCP can create an LXC and run post-creation commands via /lxc/exec (with confirm=true).
+
+Example flow:
+1. Create LXC with /lxc/create
+2. Install Docker + run Gitea/Registry containers using /lxc/exec
+
+### Ceph Support
+Yes - /ceph/status and /ceph/osds are available. More Ceph tools are planned (see TODO.md).
+
+## Testing
+Run: pytest --cov=.
+

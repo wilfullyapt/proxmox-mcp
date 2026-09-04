@@ -3,4 +3,11 @@ uvicorn[standard]
 pydantic
 requests
 python-dotenv
-proxmoxer  # optional, fallback to requests if issues
+structlog
+slowapi
+prometheus-fastapi-instrumentator
+pytest
+httpx
+pytest-cov
+ruff
+

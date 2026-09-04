@@ -1,154 +1,89 @@
 """
-Stronghold Proxmox MCP Server — Repeatable tools for Hermes butler.
-
+Proxmox MCP Server — Repeatable, priv-aware tools for Proxmox clusters.
 Self-contained, deployable as LXC or Docker.
 Focus: status, reports, queries, routine maintenance (Ceph, cluster, network, tasks).
 Finite/one-off work stays on SSH path.
 """
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 import os
-import requests
-from typing import Optional, Dict, Any
+
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
+
+from logging_config import configure_logging, get_logger, request_id_middleware
+from models import ActionResponse
+from routers import capabilities, ceph, cluster, logs, lxc
+from routers.logs import setup_self_logging
+from security import add_rate_limiting, get_api_key
 
 load_dotenv()
+configure_logging()
+setup_self_logging()
+logger = get_logger()
+
+setup_self_logging()
+logger = get_logger()
 
 app = FastAPI(
-    title="Stronghold Proxmox MCP Server",
-    version="0.2.0",
-    description="Repeatable tools: cluster status, Ceph, network inventory, tasks, health snapshots."
+    title="Proxmox MCP Server",
+    version="0.3.0",
+    description="Priv-aware, repeatable tools: cluster status, Ceph, LXC/VM management, health snapshots.",
 )
 
-PVE_HOST = os.getenv("PVE_HOST", "https://pve-01:8006")
-PVE_TOKEN_ID = os.getenv("PVE_TOKEN_ID")
-PVE_TOKEN_SECRET = os.getenv("PVE_TOKEN_SECRET")
-VERIFY_SSL = os.getenv("VERIFY_SSL", "false").lower() == "true"
+# CORS (tighten in production)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-if not PVE_TOKEN_ID or not PVE_TOKEN_SECRET:
-    print("WARNING: PVE credentials not set in .env")
+# Request ID + structured logging
+app.add_middleware(request_id_middleware())
 
-def get_session():
-    sess = requests.Session()
-    sess.headers.update({"Authorization": f"PVEAPIToken={PVE_TOKEN_ID}={PVE_TOKEN_SECRET}"})
-    if not VERIFY_SSL:
-        sess.verify = False
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    return sess
+# Rate limiting + optional API key
+app = add_rate_limiting(app)
 
-class ActionResponse(BaseModel):
-    success: bool
-    data: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+# Prometheus metrics
+Instrumentator().instrument(app).expose(app)
 
-@app.get("/health")
+# Include routers
+app.include_router(capabilities.router)
+app.include_router(lxc.router)
+app.include_router(cluster.router)
+app.include_router(ceph.router)
+app.include_router(logs.router)
+
+# Optional API key protection on all routes (if MCP_API_KEY is set)
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    if os.getenv("MCP_API_KEY"):
+        await get_api_key(request.headers.get("X-API-Key"))
+    return await call_next(request)
+
+
+# Better error handling for PVE responses
+@app.exception_handler(HTTPException)
+async def pve_error_handler(request: Request, exc: HTTPException):
+    if exc.status_code == 403:
+        return {"success": False, "error": "Permission denied (check token ACLs)", "detail": exc.detail}
+    if exc.status_code >= 500:
+        return {"success": False, "error": "Proxmox API error", "detail": exc.detail}
+    return {"success": False, "error": str(exc.detail)}
+
+
+# Legacy /health
+@app.get("/health", response_model=ActionResponse)
 def health():
-    return {"status": "ok", "version": "0.2.0", "pve_host": PVE_HOST}
+    return ActionResponse(success=True, data={
+        "status": "ok",
+        "version": "0.3.0",
+        "pve_host": os.getenv("PVE_HOST", "https://pve-01:8006")
+    })
 
-@app.get("/cluster/status", response_model=ActionResponse)
-def cluster_status():
-    """Overall cluster status and nodes."""
-    try:
-        sess = get_session()
-        r = sess.get(f"{PVE_HOST}/api2/json/cluster/status")
-        r.raise_for_status()
-        return ActionResponse(success=True, data=r.json()["data"])
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
-
-@app.get("/nodes", response_model=ActionResponse)
-def list_nodes():
-    try:
-        sess = get_session()
-        r = sess.get(f"{PVE_HOST}/api2/json/nodes")
-        r.raise_for_status()
-        return ActionResponse(success=True, data=r.json()["data"])
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
-
-@app.get("/ceph/status", response_model=ActionResponse)
-def ceph_status():
-    """Ceph cluster health, OSDs, pools — repeatable status tool."""
-    try:
-        sess = get_session()
-        r = sess.get(f"{PVE_HOST}/api2/json/cluster/ceph/status")
-        r.raise_for_status()
-        return ActionResponse(success=True, data=r.json()["data"])
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
-
-@app.get("/ceph/osds", response_model=ActionResponse)
-def ceph_osds():
-    try:
-        sess = get_session()
-        r = sess.get(f"{PVE_HOST}/api2/json/cluster/ceph/osd")
-        r.raise_for_status()
-        return ActionResponse(success=True, data=r.json()["data"])
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
-
-@app.get("/resources", response_model=ActionResponse)
-def cluster_resources(type: Optional[str] = None):
-    """All VMs, containers, storage — use for network IP inventory etc."""
-    try:
-        sess = get_session()
-        url = f"{PVE_HOST}/api2/json/cluster/resources"
-        if type:
-            url += f"?type={type}"
-        r = sess.get(url)
-        r.raise_for_status()
-        return ActionResponse(success=True, data=r.json()["data"])
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
-
-@app.get("/tasks/recent", response_model=ActionResponse)
-def recent_tasks(limit: int = 20):
-    """Recent cluster tasks (maintenance / job history)."""
-    try:
-        sess = get_session()
-        r = sess.get(f"{PVE_HOST}/api2/json/cluster/tasks?limit={limit}")
-        r.raise_for_status()
-        return ActionResponse(success=True, data=r.json()["data"])
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
-
-@app.get("/health/snapshot", response_model=ActionResponse)
-def health_snapshot():
-    """Aggregated repeatable health report (nodes + Ceph + basic resources)."""
-    try:
-        sess = get_session()
-        snapshot = {}
-        # Nodes
-        r = sess.get(f"{PVE_HOST}/api2/json/nodes")
-        snapshot["nodes"] = r.json()["data"] if r.ok else {"error": str(r.text)}
-
-        # Ceph
-        r = sess.get(f"{PVE_HOST}/api2/json/cluster/ceph/status")
-        snapshot["ceph"] = r.json()["data"] if r.ok else {"error": str(r.text)}
-
-        # Resources summary
-        r = sess.get(f"{PVE_HOST}/api2/json/cluster/resources")
-        snapshot["resources_count"] = len(r.json()["data"]) if r.ok else 0
-
-        return ActionResponse(success=True, data=snapshot)
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
-
-# Power actions kept for completeness but note: these are repeatable only when scripted
-@app.post("/vm/{node}/{vmid}/status/{action}", response_model=ActionResponse)
-def vm_action(node: str, vmid: int, action: str):
-    valid = {"start", "stop", "reboot", "shutdown"}
-    if action not in valid:
-        raise HTTPException(400, detail=f"Use one of {valid}")
-    try:
-        sess = get_session()
-        r = sess.post(f"{PVE_HOST}/api2/json/nodes/{node}/qemu/{vmid}/status/{action}")
-        r.raise_for_status()
-        return ActionResponse(success=True, data=r.json().get("data"))
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
