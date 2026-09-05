@@ -6,9 +6,8 @@ without external SSH or direct LXC access.
 
 import os
 import subprocess
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from logging_config import get_logger
@@ -91,7 +90,7 @@ def _run_update(ref: str, force: bool) -> dict:
 @router.post("/update", response_model=ActionResponse)
 def trigger_update(
     req: UpdateRequest,
-    api_key: Optional[str] = Depends(get_api_key) if os.getenv("MCP_API_KEY") else None,
+    api_key: str | None = Depends(get_api_key) if os.getenv("MCP_API_KEY") else None,
 ):
     """
     Trigger a self-update of the MCP.

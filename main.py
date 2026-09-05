@@ -14,7 +14,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from logging_config import configure_logging, get_logger, request_id_middleware
 from models import ActionResponse
-from routers import capabilities, ceph, cluster, logs, lxc, admin
+from routers import admin, capabilities, ceph, cluster, logs, lxc
 from routers.logs import setup_self_logging
 from security import add_rate_limiting, get_api_key
 
