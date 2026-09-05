@@ -2,12 +2,12 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class ActionResponse(BaseModel):
     success: bool
-    data: dict[str, Any] | None = None
+    data: Any | None = None
     error: str | None = None
 
 
@@ -26,8 +26,9 @@ class LXCCreateRequest(BaseModel):
     rootfs: str = "local-lvm:8"
     unprivileged: int = 1
 
-    @validator("net0")
-    def validate_net0(cls, v):
+    @field_validator("net0")
+    @classmethod
+    def validate_net0(cls, v: str) -> str:
         if "bridge=" not in v:
             raise ValueError("net0 must include bridge=")
         return v

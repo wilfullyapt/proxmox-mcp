@@ -23,8 +23,6 @@ configure_logging()
 setup_self_logging()
 logger = get_logger()
 
-setup_self_logging()
-logger = get_logger()
 
 app = FastAPI(
     title="Proxmox MCP Server",

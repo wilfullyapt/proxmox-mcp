@@ -48,3 +48,34 @@ This MCP provides repeatable, auditable access to Proxmox systems. Future expans
 5. Keep philosophy: repeatable & safe; one-off work stays on direct SSH/pct/qm.
 
 Target: make this the canonical, clone-and-run component for any Proxmox homelab/OpenKEEP deployment.
+## Live Probe Findings — 2026-09-04 (feature/mcp-robustness-fixes)
+Observed via direct HTTP probes against running LXC (192.168.0.233:8000) against real cluster:
+
+### Issues Found
+- **Pydantic response model mismatch**: `/nodes` and `/resources` return lists but models expect dict → validation errors in ActionResponse. Fix: make models accept list or Union, or normalize in pve_client.py.
+- **Missing `/capabilities` endpoint**: Priv-aware mapping (from skill) not present. Returns 404. Implement as planned on feature/priv-aware-tools (call PVE /access/permissions and map to features like read_audit, vm_power, etc.).
+- **Ceph OSDs**: `/ceph/osds` → 501 "Method 'GET /cluster/ceph/osd' not implemented". Either PVE version or endpoint path needs update (try /cluster/ceph/osds or handle gracefully).
+- **Tasks endpoint**: `/tasks/recent` → 400 "Parameter verification failed" on PVE side. Likely needs explicit `limit` or other params; add defaults/filters.
+- **Token ACLs still insufficient**: 403s on cluster/ceph (Sys.Audit etc.) — separate from code but document required role in references/.
+- **Positive**: `/health`, `/health/snapshot` solid and useful (3 nodes online, ceph error surfaced cleanly). Version 0.2.0 matches.
+
+### Suggested Improvements (beyond existing TODO)
+- Add robust error handling + structured PVE error mapping (currently some bare 403/501 leak).
+- Enhance logging_config for self-monitoring (as per stronghold-proxmox-mcp skill).
+- Update OpenAPI/models to prevent validation failures on real responses.
+- Add integration test or smoke test against live token (with read-only ACL).
+- Once ACL fixed, expand snapshot to include more metrics.
+- Consider making branch default or merging priv-aware work here.
+
+Next: Apply ACL on PVE, test fixes, push branch.
+
+## Branch Status — feature/mcp-robustness-fixes (2026-09-04)
+- [x] Fixed `ActionResponse.data` typing (Any instead of strict dict) — eliminates Pydantic validation errors on list responses from `/nodes` and `/resources`.
+- [x] Cleaned duplicate `setup_self_logging()` / logger lines in `main.py`.
+- [ ] Ceph OSDs path / error handling (501 on current PVE).
+- [ ] `/tasks/recent` param defaults.
+- [ ] Verify `/capabilities` works end-to-end once LXC updated.
+- [ ] Add smoke test for core endpoints.
+- [ ] Prepare LXC update instructions.
+
+Pushed to GitHub after these core robustness fixes.
