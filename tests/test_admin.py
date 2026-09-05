@@ -1,11 +1,10 @@
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from main import app
-from routers.admin import get_api_key  # if needed for override
 
 
 @pytest.fixture(autouse=True)
@@ -30,7 +29,6 @@ def test_admin_update_success(mock_popen, mock_run):
     mock_popen.return_value = MagicMock()
 
     # Override the key check for the test
-    from routers.admin import trigger_update
     app.dependency_overrides = {}
 
     client = TestClient(app)
