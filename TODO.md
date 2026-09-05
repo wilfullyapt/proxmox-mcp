@@ -79,3 +79,13 @@ Next: Apply ACL on PVE, test fixes, push branch.
 - [ ] Prepare LXC update instructions.
 
 Pushed to GitHub after these core robustness fixes.
+
+## Admin / Self-Update Feature (feature/admin-self-update)
+- [x] POST /admin/update endpoint (ref, force, dry_run support started)
+- [x] Protected by MCP_API_KEY + existing security
+- [x] Basic test in tests/test_admin.py
+- [ ] Full safety (ref whitelist, always delegate to scripts/update.sh, dry-run mode)
+- [ ] Update README with usage example
+- [ ] Clean test harness for middleware/dependency
+
+This enables Hermes to keep the MCP current autonomously.

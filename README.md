@@ -129,3 +129,21 @@ Yes - /ceph/status and /ceph/osds are available. More Ceph tools are planned (se
 ## Testing
 Run: pytest --cov=.
 
+
+## Admin Endpoints (Self-Maintenance)
+
+**POST /admin/update**
+- Body: `{"ref": "origin/main", "force": false, "dry_run": false}`
+- Requires `X-API-Key` header when `MCP_API_KEY` is set in env.
+- Triggers git update + pip install + service restart.
+- Use with caution; the service will restart.
+
+Example:
+```bash
+curl -X POST http://mcp-ip:8000/admin/update \
+  -H "X-API-Key: yourkey" \
+  -H "Content-Type: application/json" \
+  -d '{"ref": "origin/main"}'
+```
+
+After calling, poll `/health` or `/admin/update/status`.
